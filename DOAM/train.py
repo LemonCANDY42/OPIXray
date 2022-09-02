@@ -15,6 +15,7 @@ import torch.utils.data as data
 import numpy as np
 import argparse
 #import visdom
+from data.OPIXray import LabelType
 
 
 #viz = visdom.Visdom()
@@ -31,7 +32,7 @@ def str2bool(v):
 parser = argparse.ArgumentParser(
     description='Single Shot MultiBox Detector Training With Pytorch')
 train_set = parser.add_mutually_exclusive_group()
-parser.add_argument('--dataset', default='OPIXray', choices=['VOC', 'COCO','OPIXray'],
+parser.add_argument('--dataset', default='OPIXray', choices=['VOC', 'COCO','OPIXray','DongYing'],
                     type=str, help='VOC or COCO or OPIXray')
 parser.add_argument('--dataset_root', default=OPIXray_ROOT,
                     help='Dataset root directory path')
@@ -66,7 +67,9 @@ parser.add_argument('--visdom', default=False, type=str2bool,
 parser.add_argument('--save_folder', default=None,type=str,
                     help='Directory for saving checkpoint models')
 parser.add_argument('--image_sets', default=None,type=str,
-                    help='Directory for saving checkpoint models')
+                    help='Use this imagesets')
+parser.add_argument('--model_type', default='ssd', choices=['ssd','fssd'],
+                    type=str, help='ssd or fssd')
 
 args = parser.parse_args()
 
@@ -74,12 +77,15 @@ args = parser.parse_args()
 if torch.cuda.is_available():
     if args.cuda:
         torch.set_default_tensor_type('torch.cuda.FloatTensor')
+        device = 'cuda:0'
     if not args.cuda:
         print("WARNING: It looks like you have a CUDA device, but aren't " +
               "using CUDA.\nRun with --cuda for optimal training speed.")
         torch.set_default_tensor_type('torch.FloatTensor')
+        device = 'cpu'
 else:
     torch.set_default_tensor_type('torch.FloatTensor')
+    device = 'cpu'
 
 start_time = time.strftime ('%Y-%m-%d_%H-%M-%S')
 #args.save_folder += 'submit_to_github/' + 'knife_rgb_r_score_attention_adapt_sigmoid_rgb_red-rgb_position-gated_conv_hou/'
@@ -122,25 +128,22 @@ def train():
     elif args.dataset == 'OPIXray':
         print('\nXray\n')
         cfg = OPIXray
-
-
         dataset = OPIXrayDetection(image_sets=args.image_sets,root=args.dataset_root, phase='train')
 
+    elif args.dataset == 'DongYing':
+        print('\nXray\n')
+        cfg = DongYing
+        dataset = OPIXrayDetection(image_sets=args.image_sets,root=args.dataset_root,transform=SSDAugmentation(cfg['min_dim']), phase='train',type=LabelType.DongYing)#,size=(cfg['min_dim'],cfg['min_dim']),full_size=(3))
 
-
-
-
-
-
-        
-    
-
-    ssd_net = build_ssd('train', cfg['min_dim'], cfg['num_classes'])
+    if args.dataset == 'DongYing':
+        ssd_net = build_ssd('train', cfg['min_dim'], cfg['num_classes'],type=args.model_type)
+    else:
+        ssd_net = build_ssd('train', cfg['min_dim'], cfg['num_classes'])
     #ssd_net = build_ssd('train', cfg['min_dim'], 21)
 
-    net = ssd_net
+    # net = ssd_net
 
-    print (ssd_net)
+    # print (ssd_net)
 
 
 
@@ -182,9 +185,13 @@ def train():
             '''
             #ssd_net.vgg[33]
 
+
+    net = ssd_net
+    print (ssd_net)
+
     if args.cuda:
         net = net.cuda()
-    
+
 
     if (not args.resume) & (not args.transfer) :
         print('Initializing weights...')
@@ -192,9 +199,17 @@ def train():
         ssd_net.extras.apply(weights_init)
         ssd_net.loc.apply(weights_init)
         ssd_net._conf.apply(weights_init)
+        if ssd_net.model_type == 'ssd':
+            pass
+        else:
+            ssd_net.ft_module.apply(weights_init)
+            ssd_net.pyramid_ext.apply(weights_init)
+
 
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
                           weight_decay=args.weight_decay)
+
+    print('cfg[num_classes]:',cfg['num_classes'])
     criterion = MultiBoxLoss(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
                              False, args.cuda)
 
@@ -221,7 +236,9 @@ def train():
     data_loader = data.DataLoader(dataset, args.batch_size,
                                   num_workers=args.num_workers,
                                   shuffle=True, collate_fn=detection_collate,
-                                  pin_memory=True)
+                                  pin_memory=True,
+                                  generator=torch.Generator(device='cuda'),
+                                  )
     # create batch iterator
     batch_iterator = iter(data_loader)
     for iteration in range(args.start_iter, cfg['max_iter']):
@@ -238,7 +255,7 @@ def train():
                 #           repr(epoch) + '.pth')
                 torch.save(ssd_net.state_dict(), args.save_folder + '/ssd300_Xray_knife_' +
                            repr(epoch) + '.pth')
-            
+
 
         if iteration in cfg['lr_steps']:
             step_index += 1
@@ -253,16 +270,20 @@ def train():
             batch_iterator = iter(data_loader)
             images, targets = next(batch_iterator)
             print ('Reload!')
-       
 
-        if args.cuda:
-            images = Variable(images.cuda())
-            targets = [Variable(ann.cuda(), volatile=True) for ann in targets]
-        else:
-            images = Variable(images)
-            targets = [Variable(ann, volatile=True) for ann in targets]
+        with torch.no_grad():
+            if args.cuda:
+                # images = Variable(images.cuda()).to(device)
+                images = images.cuda()
+                images = images.type(torch.cuda.FloatTensor)
+                # targets = [Variable(ann.cuda()).to(device) for ann in targets] #, volatile=True
+                targets = [ann.cuda() for ann in targets]  # , volatile=True
+            else:
+                images = Variable(images).type(torch.FloatTensor)
+                targets = [Variable(ann) for ann in targets] #, volatile=True
         # forward
-        images = images.type(torch.FloatTensor)
+        # images = images.type(torch.FloatTensor)
+        # images = images.to(device)
         t0 = time.time()
         out = net(images)
         # backprop
@@ -339,7 +360,7 @@ def update_vis_plot(iteration, loc, conf, window1, window2, update_type,
             update=True
         )
 
-
+# python OPIXray/DOAM/train.py --dataset_root /project/train/src_repo/dataset --dataset DongYing --save_folder /project/train/models/ --model_type ssd --transfer /project/train/models/ssd300_mAP_77.43_v2.pth
 if __name__ == '__main__':
     train()
 

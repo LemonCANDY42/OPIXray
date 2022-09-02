@@ -11,7 +11,8 @@ import os
 # os.listdir() 方法用于返回指定的文件夹包含的文件或文件夹的名字的列表
 from os import listdir, getcwd
 from os.path import join
-from DOAM.data.OPIXray import OPIXray_CLASSES
+from OPIXray.DOAM.data.OPIXray import OPIXray_CLASSES
+from OPIXray.utils.file_tools import flexible_open
 
 
 sets = ['train', 'test', 'val']
@@ -42,11 +43,11 @@ def convert_annotation(image_id):
     labal文件中的格式：calss x y w h　　同时，一张图片对应的类别有多个，所以对应的ｂｕｎｄｉｎｇ的信息也有多个
     '''
     # 对应的通过year 找到相应的文件夹，并且打开相应image_id的xml文件，其对应bund文件
-    in_file = open('data/Annotations/%s.xml' % (image_id), encoding='utf-8')
+    in_file = flexible_open('/home/data/1284/%s.xml' % (image_id), encoding='utf-8')
     # print(in_file.name)
     # 准备在对应的image_id 中写入对应的label，分别为
     # <object-class> <x> <y> <width> <height>
-    out_file = open('data/labels/%s.txt' % (image_id), 'w', encoding='utf-8')
+    out_file = flexible_open('dataset/labels/%s.txt' % (image_id), 'w', encoding='utf-8')
     # print(out_file.name)
     # 解析xml文件
     tree = ET.parse(in_file)
@@ -61,27 +62,27 @@ def convert_annotation(image_id):
     # 遍历目标obj
     for obj in root.iter('object'):
         # 获得difficult ？？
-        difficult = obj.find('difficult').text
+        # difficult = obj.find('difficult').text
         # 获得类别 =string 类型
         cls = obj.find('name').text
         # 如果类别不是对应在我们预定好的class文件中，或difficult==1则跳过
-        if cls not in classes or int(difficult) == 1:
+        if cls not in classes: #or int(difficult) == 1:
             continue
         # 通过类别名称找到id
-        cls_id = classes.index(cls)
+        # cls_id = classes.index(cls)
         # 找到bndbox 对象
         xmlbox = obj.find('bndbox')
         # 获取对应的bndbox的数组 = ['xmin','xmax','ymin','ymax']
-        b = (float(xmlbox.find('xmin').text), float(xmlbox.find('xmax').text), float(xmlbox.find('ymin').text),
+        b = (float(xmlbox.find('xmin').text), float(xmlbox.find('ymin').text), float(xmlbox.find('xmax').text),
              float(xmlbox.find('ymax').text))
         print(image_id, cls, b)
         # 带入进行归一化操作
-        # w = 宽, h = 高， b= bndbox的数组 = ['xmin','xmax','ymin','ymax']
+        # w = 宽, h = 高， b= bndbox的数组 = ['xmin','ymin','xmax','ymax']
         # bb = convert((w, h), b)
         # bb 对应的是归一化后的(x,y,w,h)
         # 生成 calss x y w h 在label文件中
         # out_file.write(str(cls_id) + " " + " ".join([str(a) for a in bb]) + '\n')
-        out_file.write(str(cls_id) + " " + " ".join([str(a) for a in b]) + '\n')
+        out_file.write(str(cls) + " " + " ".join([str(a) for a in b]) + '\n')
 
 
 # 返回当前工作目录
@@ -98,18 +99,19 @@ for image_set in sets:
     　　　　　最后再通过直接读取文件，就能找到对应的label 信息
     '''
     # 先找labels文件夹如果不存在则创建
-    if not os.path.exists('data/labels/'):
-        os.makedirs('data/labels/')
+    if not os.path.exists('dataset/labels/'):
+        os.makedirs('dataset/labels/')
     # 读取在ImageSets/Main 中的train、test..等文件的内容
     # 包含对应的文件名称
-    image_ids = open('data/ImageSets/%s.txt' % (image_set)).read().strip().split()
+    image_ids = flexible_open('dataset/ImageSets/%s.txt' % (image_set)).read().strip().split('*')
     # 打开对应的2012_train.txt 文件对其进行写入准备
-    list_file = open('data/%s.txt' % (image_set), 'w')
+    list_file = flexible_open('dataset/%s.txt' % (image_set), 'w')
     # 将对应的文件_id以及全路径写进去并换行
     for image_id in image_ids:
-        list_file.write('data/images/%s.jpg\n' % (image_id))
-        # 调用  year = 年份  image_id = 对应的文件名_id
-        convert_annotation(image_id)
+        if image_id:
+            list_file.write('/home/data/1284/%s.jpg\n' % (image_id))
+            # 调用  year = 年份  image_id = 对应的文件名_id
+            convert_annotation(image_id)
     # 关闭文件
     list_file.close()
 

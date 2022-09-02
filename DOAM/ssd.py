@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from layers import *
-from data import voc, coco
+from data import voc, coco,DongYing
 from De_Occlusion_Attention_Module import DOAM
 import os
 from PIL import Image
@@ -32,10 +32,11 @@ class SSD(nn.Module):
         super(SSD, self).__init__()
         self.phase = phase
         self.num_classes = num_classes
-        self.cfg = (coco, voc)[num_classes == 21]
+        self.cfg = (coco, DongYing)[num_classes == 21]
         self.priorbox = PriorBox(self.cfg)
         self.priors = Variable(self.priorbox.forward(), volatile=True)
         self.size = size
+        self.model_type = type
         
         # SSD network
         self.vgg = nn.ModuleList(base)
@@ -43,12 +44,12 @@ class SSD(nn.Module):
         self.L2Norm = L2Norm(512, 20)
         self.extras = nn.ModuleList(extras)
 
-        if type!='ssd':
+        if self.model_type!='ssd':
             self.ft_module = nn.ModuleList(ft_module)
             self.pyramid_ext = nn.ModuleList(pyramid_ext)
         else:
             self.ft_module = ft_module
-            self.pyramid_ext = ft_module
+            self.pyramid_ext = pyramid_ext
 
         self.loc = nn.ModuleList(head[0])
         self._conf = nn.ModuleList(head[1])
@@ -86,10 +87,9 @@ class SSD(nn.Module):
         conf = list()
         transformed_features = list()
 
-
-
         # apply vgg up to conv4_3 relu
         x = self.edge_conv2d(x)
+
         for k in range(23):
             #if(k==0):
                 #img = x.int().cpu().squeeze().permute(1,2,0).detach().numpy()
@@ -102,6 +102,7 @@ class SSD(nn.Module):
                 #    im.save(str(i)+'edge.jpg')
                 #x = self.edge_conv2d.edge_conv2d(x)
             #else:
+            # print('k:',k)
             x = self.vgg[k](x)
 
         s = self.L2Norm(x)
@@ -115,13 +116,18 @@ class SSD(nn.Module):
 
 
         # apply extra layers and cache source layer outputs
-        for k, v in enumerate(self.extras):
-            x = F.relu(v(x), inplace=True)
-            if k % 2 == 1:
-                sources.append(x)
+        if self.model_type=='ssd':
+            for k, v in enumerate(self.extras):
+                x = F.relu(v(x), inplace=True)
+                if k % 2 == 1:
+                    sources.append(x)
+        else:
+            for k, v in enumerate(self.extras):
+                x = F.relu(v(x), inplace=True)
+            sources.append(x)
 
         #add fssd transformed_features
-        if type!='ssd':
+        if self.model_type!='ssd':
             assert len(self.ft_module) == len(sources)
             for k, v in enumerate(self.ft_module):
                 transformed_features.append(v(sources[k]))
@@ -288,6 +294,25 @@ class BasicConv(nn.Module):
             x=F.interpolate(input=x,size=(self.up_size, self.up_size), mode='bilinear')
         return x
 
+class BasicConvBN(nn.Module):
+
+    def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=0, dilation=1, groups=1, relu=True,
+                 bn=True, bias=False):
+        super(BasicConvBN, self).__init__()
+        self.out_channels = out_planes
+        self.conv = nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=padding,
+                              dilation=dilation, groups=groups, bias=bias)
+        self.bn = nn.BatchNorm2d(out_planes, eps=1e-5, momentum=0.01, affine=True) if bn else None
+        self.relu = nn.ReLU(inplace=True) if relu else None
+
+    def forward(self, x):
+        x = self.conv(x)
+        if self.bn is not None:
+            x = self.bn(x)
+        if self.relu is not None:
+            x = self.relu(x)
+        return x
+
 def pyramid_feature_extractor(size):
 
     if size == 300:
@@ -332,6 +357,7 @@ def build_ssd(phase, size=300, num_classes=21,mode=None,type="ssd"):
 
     if type =="ssd":
         layers=None
+        pyramid_ext=None
     else:
         if size == 300:
             up_size = 38
@@ -340,9 +366,9 @@ def build_ssd(phase, size=300, num_classes=21,mode=None,type="ssd"):
 
         layers = []
         # conv4_3
-        layers += [BasicConv(vgg[24].out_channels, 256, kernel_size=1, padding=0)]
+        layers += [BasicConv(base_[24].out_channels, 256, kernel_size=1, padding=0)]
         # fc_7
-        layers += [BasicConv(vgg[-2].out_channels, 256, kernel_size=1, padding=0, up_size=up_size)]
+        layers += [BasicConv(base_[-2].out_channels, 256, kernel_size=1, padding=0, up_size=up_size)]
         layers += [BasicConv(extras_[-1].out_channels, 256, kernel_size=1, padding=0, up_size=up_size)]
 
         pyramid_ext = pyramid_feature_extractor(size)

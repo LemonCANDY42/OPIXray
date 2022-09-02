@@ -219,13 +219,15 @@ class DOAM(nn.Module):
         try:
             x_hori = F.conv2d(x3, weight_hori, padding=1 )
             #x_hori = self.conv2d_hori(x3)
-        except:
-            print('horizon error')
+        except Exception as e:
+            print(f'horizon error:{weight_hori.shape}')
+            raise e
         try:
             x_vertical = F.conv2d(x3, weight_vertical, padding=1)
             #x_vertical = self.conv2d_vertical(x3)
-        except:
-            print('vertical error')
+        except Exception as e:
+            print(f'vertical error:{weight_vertical.shape}')
+            raise e
 
         #get edge image
         edge_detect = (torch.add(x_hori.pow(2),x_vertical.pow(2))).pow(0.5)
@@ -261,10 +263,12 @@ class DOAM(nn.Module):
 
 
         sigmoid_output = self.sigmoid(rgb_red_conved)
+        # print(sigmoid_output.shape)
 
         #count = count + 1
 
         rgb_red = self.gamma * (sigmoid_output * rgb_red) + (1 - self.gamma)*rgb_red
+        # rgb_red = self.gamma * (sigmoid_output * im) + (1 - self.gamma)*im
         #output = self.conv2d(rgb_red)
 
 
@@ -283,5 +287,7 @@ class DOAM(nn.Module):
         #x = self.DOAM.DOAM(x)
         #img = Image.fromarray(edge_detect).convert('L')
         #img.save('edge.jpg')
+
+
 
         return rgb_red#,edge_detect
