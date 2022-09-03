@@ -10,12 +10,12 @@ import albumentations as A
 
 def resize_image(img_arr, bboxes, h, w):
 	"""
-    :param img_arr: original image as a numpy array
-    :param bboxes: bboxes as numpy array where each row is 'x_min', 'y_min', 'x_max', 'y_max', "class_id"
-    :param h: resized height dimension of image
-    :param w: resized weight dimension of image
-    :return: dictionary containing {image:transformed, bboxes:['x_min', 'y_min', 'x_max', 'y_max', "class_id"]}
-    """
+	:param img_arr: original image as a numpy array
+	:param bboxes: bboxes as numpy array where each row is 'x_min', 'y_min', 'x_max', 'y_max', "class_id"
+	:param h: resized height dimension of image
+	:param w: resized weight dimension of image
+	:return: dictionary containing {image:transformed, bboxes:['x_min', 'y_min', 'x_max', 'y_max', "class_id"]}
+	"""
 	# create resize transform pipeline
 	transform = A.Compose(
 		[A.Resize(height=h, width=w, always_apply=True)],
@@ -31,6 +31,7 @@ def augmt_transformed(img_arr, bboxes):
 		A.PadIfNeeded(min_height=900, min_width=900, value=255),
 		A.HorizontalFlip(p=0.5),
 		A.VerticalFlip(p=0.5),
+		A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.2, rotate_limit=45, p=0.2),
 		# A.OneOf([
 		#     A.IAAAdditiveGaussianNoise(),   # 将高斯噪声添加到输入图像
 		#     A.GaussNoise(),    # 将高斯噪声应用于输入图像。
@@ -41,13 +42,12 @@ def augmt_transformed(img_arr, bboxes):
 		#     A.Blur(blur_limit=3, p=0.1),   # 使用随机大小的内核模糊输入图像。
 		# ], p=0.2),
 
-		A.RandomBrightnessContrast(p=0.03),  # 随机明亮对比度
+		A.RandomBrightnessContrast(brightness_limit=0.05, contrast_limit=0.05, p=0.3),  # 随机明亮对比度
 		# A.RandomCropNearBBox(max_part_shift=(0.2,0.2),cropping_box_key='test_box',p=0.2),
 		# A.LongestMaxSize(max_size = 900,interpolation = 1,always_apply = False,p = 1),
-		# A.RandomSizedCrop(p=0.5),
-		A.RandomRotate90(p=0.3),
+		A.RandomSizedBBoxSafeCrop(height=600, width=600, p=0.7),
+		A.RandomRotate90(p=0.5),
 		# 随机应用仿射变换：平移，缩放和旋转输入
-		A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.2, rotate_limit=45, p=0.2),
 	], bbox_params=A.BboxParams(format='pascal_voc'), )
 
 	transformed = transform(image=img_arr, bboxes=bboxes, test_box=random.choice(bboxes))
@@ -65,15 +65,15 @@ def intersect(box_a, box_b):
 
 def jaccard_numpy(box_a, box_b):
 	"""Compute the jaccard overlap of two sets of boxes.  The jaccard overlap
-    is simply the intersection over union of two boxes.
-    E.g.:
-        A ∩ B / A ∪ B = A ∩ B / (area(A) + area(B) - A ∩ B)
-    Args:
-        box_a: Multiple bounding boxes, Shape: [num_boxes,4]
-        box_b: Single bounding box, Shape: [4]
-    Return:
-        jaccard overlap: Shape: [box_a.shape[0], box_a.shape[1]]
-    """
+	is simply the intersection over union of two boxes.
+	E.g.:
+			A ∩ B / A ∪ B = A ∩ B / (area(A) + area(B) - A ∩ B)
+	Args:
+			box_a: Multiple bounding boxes, Shape: [num_boxes,4]
+			box_b: Single bounding box, Shape: [4]
+	Return:
+			jaccard overlap: Shape: [box_a.shape[0], box_a.shape[1]]
+	"""
 	inter = intersect(box_a, box_b)
 	area_a = ((box_a[:, 2] - box_a[:, 0]) *
 						(box_a[:, 3] - box_a[:, 1]))  # [A,B]
@@ -85,14 +85,14 @@ def jaccard_numpy(box_a, box_b):
 
 class Compose(object):
 	"""Composes several augmentations together.
-    Args:
-        transforms (List[Transform]): list of transforms to compose.
-    Example:
-        >>> augmentations.Compose([
-        >>>     transforms.CenterCrop(10),
-        >>>     transforms.ToTensor(),
-        >>> ])
-    """
+	Args:
+			transforms (List[Transform]): list of transforms to compose.
+	Example:
+			>>> augmentations.Compose([
+			>>>     transforms.CenterCrop(10),
+			>>>     transforms.ToTensor(),
+			>>> ])
+	"""
 
 	def __init__(self, transforms):
 		self.transforms = transforms
@@ -257,17 +257,17 @@ class ToTensor(object):
 
 class RandomSampleCrop(object):
 	"""Crop
-    Arguments:
-        img (Image): the image being input during training
-        boxes (Tensor): the original bounding boxes in pt form
-        labels (Tensor): the class labels for each bbox
-        mode (float tuple): the min and max jaccard overlaps
-    Return:
-        (img, boxes, classes)
-            img (Image): the cropped image
-            boxes (Tensor): the adjusted bounding boxes in pt form
-            labels (Tensor): the class labels for each bbox
-    """
+	Arguments:
+			img (Image): the image being input during training
+			boxes (Tensor): the original bounding boxes in pt form
+			labels (Tensor): the class labels for each bbox
+			mode (float tuple): the min and max jaccard overlaps
+	Return:
+			(img, boxes, classes)
+					img (Image): the cropped image
+					boxes (Tensor): the adjusted bounding boxes in pt form
+					labels (Tensor): the class labels for each bbox
+	"""
 
 	def __init__(self):
 		self.sample_options = (
@@ -400,22 +400,22 @@ class RandomMirror(object):
 
 class SwapChannels(object):
 	"""Transforms a tensorized image by swapping the channels in the order
-     specified in the swap tuple.
-    Args:
-        swaps (int triple): final order of channels
-            eg: (2, 1, 0)
-    """
+	 specified in the swap tuple.
+	Args:
+			swaps (int triple): final order of channels
+					eg: (2, 1, 0)
+	"""
 
 	def __init__(self, swaps):
 		self.swaps = swaps
 
 	def __call__(self, image):
 		"""
-        Args:
-            image (Tensor): image tensor to be transformed
-        Return:
-            a tensor with channels swapped according to swap
-        """
+		Args:
+				image (Tensor): image tensor to be transformed
+		Return:
+				a tensor with channels swapped according to swap
+		"""
 		# if torch.is_tensor(image):
 		#     image = image.data.cpu().numpy()
 		# else:

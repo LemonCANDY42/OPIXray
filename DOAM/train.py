@@ -45,8 +45,8 @@ parser.add_argument('--resume', default=None, type=str,
 										help='Checkpoint state_dict file to resume training from')
 
 parser.add_argument('--transfer', default=None, type=str,
-                    # default= None, type=str,
-                    help='Checkpoint state_dict file for transfer learning')
+										# default= None, type=str,
+										help='Checkpoint state_dict file for transfer learning')
 
 parser.add_argument('--start_iter', default=0, type=int,
 										help='Resume training at this iter')
@@ -55,8 +55,8 @@ parser.add_argument('--num_workers', default=4, type=int,
 parser.add_argument('--cuda', default=True, type=str2bool,
 										help='Use CUDA to train model')
 parser.add_argument('--lr', '--learning-rate',  # default=1e-3, type=float,
-                    default=1 * (1e-4), type=float,
-                    help='initial learning rate')
+										default=1 * (1e-4), type=float,
+										help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float,
 										help='Momentum value for optim')
 parser.add_argument('--weight_decay', default=5e-4, type=float,
@@ -163,27 +163,27 @@ def train():
 		else:
 			print('Transfer learning...')
 			ssd_net._modules['vgg'][0] = nn.Conv2d(4, 64, kernel_size=3, padding=1)
-			ssd_net.load_weights(args.transfer, isStrict=False)
-			ssd_net._conf.apply(weights_init)
+			ssd_net.load_weights(args.transfer)  # , isStrict = False)
+			# ssd_net._conf.apply(weights_init)
 			# ssd_net._modules['vgg'][0] = nn.Conv2d(4, 64, kernel_size=3, padding=1)
 			'''
-            pretrained_dict = torch.load(args.transfer)
-            model_dict = ssd_net.state_dict()
-            pretrained_dict = transfer_state_dict(pretrained_dict, model_dict)
-            model_dict.update(pretrained_dict)  # 更新(合并)模型的参数
-            ssd_net = ssd_net.load_state_dict(model_dict)
-            '''
+			pretrained_dict = torch.load(args.transfer)
+			model_dict = ssd_net.state_dict()
+			pretrained_dict = transfer_state_dict(pretrained_dict, model_dict)
+			model_dict.update(pretrained_dict)  # 更新(合并)模型的参数
+			ssd_net = ssd_net.load_state_dict(model_dict)
 			'''
-            pretrained_dict = torch.load(args.transfer)
-            model_dict = ssd_net.state_dict()
-            pretrained_dict = {k: v for k, v in pretrained_dict.items() if
-                               k in model_dict and (k != 'vgg.33.weight') and (k != 'extras.0.weight') and (k != 'extras.2.weight')
-                               and (k != 'extras.4.weight') and (k != 'extras.6.weight')}  # filter out unnecessary keys
-            model_dict.update(pretrained_dict)
-            ssd_net.load_state_dict(model_dict)
-            nn.init.xavier_uniform_(ssd_net.vgg[33].weight)
-            '''
-			# ssd_net.vgg[33]
+			'''
+			pretrained_dict = torch.load(args.transfer)
+			model_dict = ssd_net.state_dict()
+			pretrained_dict = {k: v for k, v in pretrained_dict.items() if
+												 k in model_dict and (k != 'vgg.33.weight') and (k != 'extras.0.weight') and (k != 'extras.2.weight')
+												 and (k != 'extras.4.weight') and (k != 'extras.6.weight')}  # filter out unnecessary keys
+			model_dict.update(pretrained_dict)
+			ssd_net.load_state_dict(model_dict)
+			nn.init.xavier_uniform_(ssd_net.vgg[33].weight)
+			'''
+		# ssd_net.vgg[33]
 
 	net = ssd_net
 	print(ssd_net)
@@ -203,9 +203,9 @@ def train():
 			ssd_net.ft_module.apply(weights_init)
 			ssd_net.pyramid_ext.apply(weights_init)
 
-	# optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
-	#                       weight_decay=args.weight_decay)
-	optimizer = optim.Adam(net.parameters(), lr=args.lr)
+	optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
+												weight_decay=args.weight_decay)
+	# optimizer = optim.Adam(net.parameters(), lr=args.lr)
 
 	print('cfg[num_classes]:', cfg['num_classes'])
 	criterion = MultiBoxLoss(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
@@ -255,10 +255,10 @@ def train():
 				torch.save(ssd_net.state_dict(),
 									 args.save_folder + '' + args.dataset + 'best_loss' + '.pth')
 				print('Saving state, epoch:', epoch)
-				# torch.save(ssd_net.state_dict(), args.save_folder + '/ssd300_SIXray_' +
-				#           repr(epoch) + '.pth')
-				# torch.save(ssd_net.state_dict(), args.save_folder + '/ssd300_Xray_knife_' +
-				#            repr(epoch) + '.pth')
+			# torch.save(ssd_net.state_dict(), args.save_folder + '/ssd300_SIXray_' +
+			#           repr(epoch) + '.pth')
+			# torch.save(ssd_net.state_dict(), args.save_folder + '/ssd300_Xray_knife_' +
+			#            repr(epoch) + '.pth')
 
 		if iteration in cfg['lr_steps']:
 			step_index += 1
@@ -317,18 +317,20 @@ def train():
 			update_vis_plot(iteration, loss_l.item(), loss_c.item(),
 											iter_plot, epoch_plot, 'append')
 
-		# torch.cuda.empty_cache()
+	# torch.cuda.empty_cache()
 
 	torch.save(ssd_net.state_dict(),
 						 args.save_folder + '' + args.dataset + '.pth')
+	torch.save(ssd_net,
+						 args.save_folder + '' + args.dataset + '_full' + '.pth')
 
 
 def adjust_learning_rate(optimizer, gamma, step):
 	'''Sets the learning rate to the initial LR decayed by 10 at every
-        specified step
-    # Adapted from PyTorch Imagenet example:
-    # https://github.com/pytorch/examples/blob/master/imagenet/main.py
-    '''
+			specified step
+	# Adapted from PyTorch Imagenet example:
+	# https://github.com/pytorch/examples/blob/master/imagenet/main.py
+	'''
 	lr = args.lr * (gamma ** (step))
 	for param_group in optimizer.param_groups:
 		param_group['lr'] = lr
