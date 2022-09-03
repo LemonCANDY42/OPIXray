@@ -16,7 +16,8 @@ import cv2
 from PIL import Image
 from pathlib import Path
 import numpy as np
-from OPIXray.DOAM.utils.augmentations import resize_image
+from OPIXray.DOAM.utils.augmentations import resize_image,augmt_transformed
+from torchvision import transforms as T
 
 if sys.version_info[0] == 2:
 	import xml.etree.cElementTree as ET
@@ -111,20 +112,20 @@ class OPIXrayAnnotationTransform(object):
 				name = temp[0]
 				if name not in OPIXray_CLASSES:
 					continue
-				xmin = float(temp[1]) / width
-				if xmin > 1:
-					continue
+				xmin = float(temp[1]) #/ width
+				# if xmin > 1:
+				# 	continue
 				if xmin < 0:
 					xmin = 0
-				ymin = float(temp[2]) / height
+				ymin = float(temp[2]) #/ height
 				if ymin < 0:
 					ymin = 0
-				xmax = float(temp[3]) / width
-				if xmax > 1:
-					xmax = 1
-				ymax = float(temp[4]) / height
-				if ymax > 1:
-					ymax = 1
+				xmax = float(temp[3]) #/ width
+				# if xmax > 1:
+				# 	xmax = 1
+				ymax = float(temp[4]) #/ height
+				# if ymax > 1:
+				# 	ymax = 1
 				bndbox.append(xmin)
 				bndbox.append(ymin)
 				bndbox.append(xmax)
@@ -172,6 +173,11 @@ class OPIXrayDetection(data.Dataset):
 		self.target_transform.set_dataset_type(self.type.name)
 		# self.name = dataset_name
 		self.name = self.type.name
+		self.as_tensor = T.Compose([
+			T.ToTensor(),
+		])
+		self.phase = phase
+
 		if (phase == 'test'):
 			if self.type is LabelType.OPIXray:
 				self._annopath = os.path.join('%s' % self.root, '{}_annotation'.format(phase), '%s.txt')
@@ -204,11 +210,12 @@ class OPIXrayDetection(data.Dataset):
 					for line in lines:
 						self.ids.append(line.strip('\n'))
 		else:
-			if self.images_file_path:
-				with open(self.images_file_path, 'r') as f:
-					lines = f.readlines()
-					for line in lines:
-						self.ids.append(Path(line.strip('\n')))
+			if (phase == 'train'):
+				if self.images_file_path:
+					with open(self.images_file_path, 'r') as f:
+						lines = f.readlines()
+						for line in lines:
+							self.ids.append(Path(line.strip('\n')))
 
 	def __getitem__(self, index):
 		im, gt, h, w, og_im = self.pull_item(index)
@@ -228,11 +235,15 @@ class OPIXrayDetection(data.Dataset):
 			img = cv2.imread(img_path)
 		else:
 			img_path = img_id
-			target = self.labels_folder / img_id.stem
-			target = str(target)+'.txt'
+			if (self.phase == 'train'):
+				target = self.labels_folder / img_id.stem
+				target = str(target)+'.txt'
 			# img = cv2.imread(str(img_path))
 			img = Image.open(str(img_path))
 			img = np.asarray(img)
+			if (self.phase == 'test'):
+				img = cv2.resize(img, (300, 300))
+				print(img.shape)
 
 		if img is None:
 			raise 'wrong'
@@ -254,14 +265,37 @@ class OPIXrayDetection(data.Dataset):
 		# img = np.concatenate((img,sobel_img),2)
 		# print (img_id)
 
-		if self.target_transform is not None:
-			target = self.target_transform(target, width, height, img_id)
 
-		transformed_dict = resize_image(img, target, 300, 300)
-		# contains the image as array
-		img = transformed_dict["image"]
-		# contains the resized bounding boxes
-		target = np.array(list(map(list, transformed_dict["bboxes"]))).astype(float)
+		if (self.phase == 'train'):
+			if self.target_transform is not None:
+				target = self.target_transform(target, width, height, img_id)
+
+			# if target[0] != [0, 0, 0, 0, len(OPIXray_CLASSES)]:
+			augments = augmt_transformed(img,target)
+			img = augments['image']
+			target = augments['bboxes']
+			# else:
+			# 	print(target)
+			transformed_dict = resize_image(img,target, 300, 300)
+			target = transformed_dict['bboxes']
+			# transformed_dict = resize_image(img,target, 300, 300)
+
+			# # contains the image as array
+			img = self.as_tensor(transformed_dict["image"])
+			# # contains the resized bounding boxes
+			# print(target)
+			if target != []:
+				temp_t = []
+				for t in target:
+					temp_t.append([t[0]/300,t[1]/300,t[2]/300,t[3]/300,t[-1]])
+				target = np.array(list(map(list, temp_t))).astype(float)
+			else:
+				target = np.array([[0., 0., 0., 0., len(OPIXray_CLASSES)]]).astype(float)
+		else:
+			img = torch.from_numpy(img)
+			target = None
+		# print(target,type(target))
+
 		#'''
 		# if self.transform is not None:
 		# 		target = np.array(target)
@@ -273,5 +307,5 @@ class OPIXrayDetection(data.Dataset):
 		# 		target = np.hstack((boxes, np.expand_dims(labels, axis=1)))
 		#'''
 
-
-		return torch.from_numpy(img).permute(2, 0, 1), target, height, width, og_img
+		# return torch.from_numpy(img).permute(2, 0, 1), target, height, width, og_img
+		return img, target, height, width, og_img

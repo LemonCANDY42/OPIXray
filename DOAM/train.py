@@ -162,9 +162,10 @@ def train():
 			ssd_net._modules['vgg'][0] = nn.Conv2d(4, 64, kernel_size=3, padding=1)
 		else:
 			print('Transfer learning...')
+			ssd_net._modules['vgg'][0] = nn.Conv2d(4, 64, kernel_size=3, padding=1)
 			ssd_net.load_weights(args.transfer, isStrict=False)
 			ssd_net._conf.apply(weights_init)
-			ssd_net._modules['vgg'][0] = nn.Conv2d(4, 64, kernel_size=3, padding=1)
+			# ssd_net._modules['vgg'][0] = nn.Conv2d(4, 64, kernel_size=3, padding=1)
 			'''
             pretrained_dict = torch.load(args.transfer)
             model_dict = ssd_net.state_dict()
@@ -202,9 +203,9 @@ def train():
 			ssd_net.ft_module.apply(weights_init)
 			ssd_net.pyramid_ext.apply(weights_init)
 
-	optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
-												weight_decay=args.weight_decay)
-	# optimizer = optim.Adam(net.parameters(), lr=args.lr)
+	# optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
+	#                       weight_decay=args.weight_decay)
+	optimizer = optim.Adam(net.parameters(), lr=args.lr)
 
 	print('cfg[num_classes]:', cfg['num_classes'])
 	criterion = MultiBoxLoss(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
