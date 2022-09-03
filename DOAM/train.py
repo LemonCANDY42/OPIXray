@@ -272,7 +272,7 @@ def train():
 		except:
 			batch_iterator = iter(data_loader)
 			images, targets = next(batch_iterator)
-			print('Reload!')
+			print(f'Reload! New epoch {epoch}')
 
 		with torch.no_grad():
 			if args.cuda:
