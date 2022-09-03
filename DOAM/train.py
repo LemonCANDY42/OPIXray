@@ -203,9 +203,9 @@ def train():
 			ssd_net.ft_module.apply(weights_init)
 			ssd_net.pyramid_ext.apply(weights_init)
 
-	optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
-												weight_decay=args.weight_decay)
-	# optimizer = optim.Adam(net.parameters(), lr=args.lr)
+	# optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
+	#                       weight_decay=args.weight_decay)
+	optimizer = optim.Adam(net.parameters(), lr=args.lr)
 
 	print('cfg[num_classes]:', cfg['num_classes'])
 	criterion = MultiBoxLoss(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
@@ -260,7 +260,7 @@ def train():
 			# torch.save(ssd_net.state_dict(), args.save_folder + '/ssd300_Xray_knife_' +
 			#            repr(epoch) + '.pth')
 
-		if iteration in cfg['lr_steps']:
+		if epoch in cfg['lr_steps']:
 			step_index += 1
 			adjust_learning_rate(optimizer, args.gamma, step_index)
 
@@ -377,7 +377,7 @@ def update_vis_plot(iteration, loc, conf, window1, window2, update_type,
 		)
 
 
-# python OPIXray/DOAM/train.py --dataset_root /project/train/src_repo/dataset --dataset DongYing --save_folder /project/train/models/ --model_type ssd --transfer /project/train/models/ssd300_mAP_77.43_v2.pth
+# python OPIXray/DOAM/train.py --dataset_root /project/train/src_repo/dataset --dataset DongYing --save_folder /project/train/models/ --model_type ssd --transfer /project/train/models/DongYingbest_loss.pth --batch_size 16 --num_workers 8
 if __name__ == '__main__':
 	train()
 
