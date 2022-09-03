@@ -65,9 +65,9 @@ OPIXray = {
 DongYing = {
     #'num_classes': 6,  !!!!
     'num_classes': len(OPIXray_CLASSES)+1,
-    'lr_steps': (80000, 100000, 120000),
+    'lr_steps': (100, 500, 1000, 1500),
     #'max_iter': 20000,
-    'max_iter': 1000000,
+    'max_iter': 2000,
     'feature_maps': [38, 19, 10, 5, 3, 1],
     # 'min_dim': 300/512
     'min_dim': 300,

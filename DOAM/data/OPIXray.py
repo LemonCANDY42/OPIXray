@@ -13,8 +13,10 @@ import sys
 import torch
 import torch.utils.data as data
 import cv2
+from PIL import Image
 from pathlib import Path
 import numpy as np
+from OPIXray.DOAM.utils.augmentations import resize_image
 
 if sys.version_info[0] == 2:
 	import xml.etree.cElementTree as ET
@@ -228,7 +230,9 @@ class OPIXrayDetection(data.Dataset):
 			img_path = img_id
 			target = self.labels_folder / img_id.stem
 			target = str(target)+'.txt'
-			img = cv2.imread(str(img_path))
+			# img = cv2.imread(str(img_path))
+			img = Image.open(str(img_path))
+			img = np.asarray(img)
 
 		if img is None:
 			raise 'wrong'
@@ -241,24 +245,33 @@ class OPIXrayDetection(data.Dataset):
 		# print("height: " + str(height) + " ; width : " + str(width) + " ; channels " + str(channels) )
 		og_img = img
 		# yuv_img = cv2.cvtColor(og_img,cv2.COLOR_BGR2YUV)
-		try:
-			img = cv2.resize(img, (300, 300))
-		except:
-			print('img_read_error')
+
+		# try:
+		# 	img = cv2.resize(img, (300, 300))
+		# except:
+		# 	print('img_read_error')
 
 		# img = np.concatenate((img,sobel_img),2)
 		# print (img_id)
+
 		if self.target_transform is not None:
 			target = self.target_transform(target, width, height, img_id)
+
+		transformed_dict = resize_image(img, target, 300, 300)
+		# contains the image as array
+		img = transformed_dict["image"]
+		# contains the resized bounding boxes
+		target = np.array(list(map(list, transformed_dict["bboxes"]))).astype(float)
 		#'''
-		if self.transform is not None:
-				target = np.array(target)
-				#print('\n\n\n' + str(target) + '\n\n\n' )
-				img, boxes, labels = self.transform(img, target[:, :4], target[:, 4])
-				# to rgb
-				img = img[:, :, (2, 1, 0)]
-				# img = img.transpose(a2, 0, a1)
-				target = np.hstack((boxes, np.expand_dims(labels, axis=1)))
+		# if self.transform is not None:
+		# 		target = np.array(target)
+		# 		#print('\n\n\n' + str(target) + '\n\n\n' )
+		# 		img, boxes, labels = self.transform(img, target[:, :4], target[:, 4])
+		# 		# to rgb
+		# 		img = img[:, :, (2, 1, 0)]
+		# 		# img = img.transpose(a2, 0, a1)
+		# 		target = np.hstack((boxes, np.expand_dims(labels, axis=1)))
 		#'''
+
 
 		return torch.from_numpy(img).permute(2, 0, 1), target, height, width, og_img

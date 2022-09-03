@@ -157,7 +157,7 @@ class SSD(nn.Module):
         #print(xfreq)
         #a = 3;
         #print(self.priors.type(type(x.data)))
-        if self.phase == "test":
+        if self.phase == 'test':
             output = self.detect(
                 loc.view(loc.size(0), -1, 4),                   # loc preds
                 self.softmax(conf.view(conf.size(0), -1,
@@ -341,18 +341,22 @@ def build_ssd(phase, size=300, num_classes=21,mode=None,type="ssd"):
     else:
         raise("ERROR: You specified size " + repr(size) + ". However, " +
               "currently only SSD300/SSD512 (size=300/512) is supported!")
+    if type == "ssd":
+        nums = 1024
+    else:
+        nums = 1024
 
     if(phase == 'train'):
         base_, extras_, head_ = multibox(vgg(base[str(size)], 3),
-                                         add_extras(extras[str(size)], 1024),
+                                         add_extras(extras[str(size)], nums),
                                          mbox[str(size)], num_classes)
     elif(phase == 'test'):
         base_, extras_, head_ = multibox(vgg(base[str(size)], 4),
-                                         add_extras(extras[str(size)], 1024),
+                                         add_extras(extras[str(size)], nums),
                                          mbox[str(size)], num_classes)
     elif(phase == 'onnx'):
         base_, extras_, head_ = multibox(vgg(base[str(size)], 4),
-                                         add_extras(extras[str(size)], 1024),
+                                         add_extras(extras[str(size)], nums),
                                          mbox[str(size)], num_classes)
 
     if type =="ssd":

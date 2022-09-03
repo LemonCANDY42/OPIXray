@@ -13,7 +13,7 @@ class OPIXrayDetectionSingle(OPIXrayDetection):
     def __init__(self, img_path, *kargs, **kwargs):
         super(OPIXrayDetectionSingle, self).__init__(*kargs, **kwargs)
         self.img_path = Path(img_path)
-        self.ids.append(self.img_path.stem)
+        self.ids.append(self.img_path.name)
 
 
 def test_net_single_img(save_folder, net, cuda, dataset, transform, top_k,

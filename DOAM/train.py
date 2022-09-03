@@ -16,6 +16,7 @@ import numpy as np
 import argparse
 #import visdom
 from data.OPIXray import LabelType
+from sklearn.metrics import f1_score
 
 
 #viz = visdom.Visdom()
@@ -133,7 +134,7 @@ def train():
     elif args.dataset == 'DongYing':
         print('\nXray\n')
         cfg = DongYing
-        dataset = OPIXrayDetection(image_sets=args.image_sets,root=args.dataset_root,transform=SSDAugmentation(cfg['min_dim']), phase='train',type=LabelType.DongYing)#,size=(cfg['min_dim'],cfg['min_dim']),full_size=(3))
+        dataset = OPIXrayDetection(image_sets=args.image_sets,root=args.dataset_root, phase='train',type=LabelType.DongYing)#,size=(cfg['min_dim'],cfg['min_dim']),full_size=(3))
 
     if args.dataset == 'DongYing':
         ssd_net = build_ssd('train', cfg['min_dim'], cfg['num_classes'],type=args.model_type)
@@ -160,7 +161,9 @@ def train():
         if not args.transfer:
             vgg_weights = torch.load(args.save_folder + args.basenet)
             print('Loading base network...')
-            ssd_net.vgg.load_state_dict(vgg_weights)
+            # ssd_net.vgg.load_state_dict(vgg_weights)
+            ssd_net._conf.apply(weights_init)
+            ssd_net._modules['vgg'][0] = nn.Conv2d(4, 64, kernel_size=3, padding=1)
         else:
             print('Transfer learning...')
             ssd_net.load_weights(args.transfer, isStrict = False)
@@ -206,8 +209,9 @@ def train():
             ssd_net.pyramid_ext.apply(weights_init)
 
 
-    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
-                          weight_decay=args.weight_decay)
+    # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
+    #                       weight_decay=args.weight_decay)
+    optimizer = optim.Adam(net.parameters(), lr=args.lr)
 
     print('cfg[num_classes]:',cfg['num_classes'])
     criterion = MultiBoxLoss(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
@@ -241,6 +245,10 @@ def train():
                                   )
     # create batch iterator
     batch_iterator = iter(data_loader)
+
+    running_loss = 0.0
+    running_corrects = 0
+
     for iteration in range(args.start_iter, cfg['max_iter']):
         if iteration != 0 and (iteration % epoch_size == 0):
             epoch += 1
@@ -290,15 +298,21 @@ def train():
         optimizer.zero_grad()
         loss_l, loss_c = criterion(out, targets)
         loss = loss_l + loss_c
+
+        running_loss += loss.item() * images.size(0)
+        running_corrects += torch.sum(out == targets.data)
+        # Add these lines to obtain f1_score
+        f1_score = f1_score(targets.data, out)
+
         loss.backward()
         optimizer.step()
         t1 = time.time()
         loc_loss += loss_l.item()
         conf_loss += loss_c.item()
 
-        if iteration % 10 == 0:
+        if iteration % 2 == 0:
             print('timer: %.4f sec.' % (t1 - t0))
-            print('iter ' + repr(iteration) + ' || Loss: %.4f ||' % (loss.item()), end=' ')
+            print('iter ' + repr(iteration) + ' || Loss: %.4f || %.4f ||' % (loss.item(), f1_score), end=' ')
 
         if args.visdom:
             update_vis_plot(iteration, loss_l.item(), loss_c.item(),
