@@ -27,7 +27,6 @@ def resize_image(img_arr, bboxes, h, w):
 
 def augmt_transformed(img_arr, bboxes):
     transform = A.Compose([
-        A.PadIfNeeded(min_height=600,min_width=600,value=255, always_apply=True),
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
         # 随机应用仿射变换：平移，缩放和旋转输入
@@ -43,7 +42,6 @@ def augmt_transformed(img_arr, bboxes):
         # ], p=0.2),
         # A.RandomCropNearBBox(max_part_shift=(0.2,0.2),cropping_box_key='test_box',p=0.2),
         # A.LongestMaxSize(max_size = 900,interpolation = 1,always_apply = False,p = 1),
-        A.RandomSizedBBoxSafeCrop(height=600,width=600,p=0.2),
         A.RandomBrightnessContrast(brightness_limit=0.05,contrast_limit=0.05,p=0.3),   # 随机明亮对比度
         # A.RandomRotate90(p=0.2),
     ],bbox_params=A.BboxParams(format='albumentations'),)
