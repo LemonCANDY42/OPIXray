@@ -292,7 +292,7 @@ class OPIXrayDetection(data.Dataset):
 			else:
 				target = np.array([[0., 0., 0., 0., len(OPIXray_CLASSES)]]).astype(float)
 		else:
-			img = torch.from_numpy(img)
+			# img = torch.from_numpy(img).permute(2, 0, 1)
 			target = None
 		# print(target,type(target))
 

@@ -69,6 +69,9 @@ parser.add_argument('--cleanup', default=True, type=str2bool,
 parser.add_argument('--imagesetfile',
                     default=None, type=str,
                     help='imageset file path to open')
+parser.add_argument('--save_image',
+                default='OPIXray_Dataset/train/train_image/009069.jpg', type=str,
+                help='image file path to inference')
 
 args = parser.parse_args()
 

@@ -1,12 +1,14 @@
 import cv2
+from data.OPIXray import OPIXray_CLASSES
 
-COLOR_CONFIG = {
-    'Folding_Knife': (255, 255, 0)
-    , 'Straight_Knife': (0, 255, 0)
-    , 'Scissor': (0, 0, 255)
-    , 'Utility_Knife': (255, 0, 255)
-    , 'Multi-tool_Knife': (255, 0, 0),
-}
+# COLOR_CONFIG = {
+#     'Folding_Knife': (255, 255, 0)
+#     , 'Straight_Knife': (0, 255, 0)
+#     , 'Scissor': (0, 0, 255)
+#     , 'Utility_Knife': (255, 0, 255)
+#     , 'Multi-tool_Knife': (255, 0, 0),
+# }
+COLOR_CONFIG = {x:(0, 0, 255) for x in OPIXray_CLASSES }
 
 
 def draw_with_coordinate(class_correct_scores: dict, class_coordinate_dict: dict, og_im, color_config=COLOR_CONFIG):
@@ -22,5 +24,6 @@ def draw_with_coordinate(class_correct_scores: dict, class_coordinate_dict: dict
                 cv2.putText(og_im, "{0},score:{1}".format(cls, "%.2f" % score), text_point, cv2.FONT_HERSHEY_COMPLEX,
                             fontScale=1, color=color_config[cls],
                             thickness=2)
-    cv2.imshow("image", og_im)
-    cv2.waitKey(0)
+    return og_im
+    # cv2.imshow("image", og_im)
+    # cv2.waitKey(0)
