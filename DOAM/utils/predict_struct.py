@@ -1,8 +1,8 @@
-from analysis import *
+from OPIXray.DOAM.utils.analysis import *
 import torch
 import numpy as np
 
-def result_struct(detections,h, w,all_boxes,OPIXray_CLASSES):
+def result_struct(detections,h, w,all_boxes,OPIXray_CLASSES,thresh=0.05):
     class_scores_dict = series2dict(OPIXray_CLASSES)
     class_coordinate_dict = series2dict(OPIXray_CLASSES)
     class_correct_scores = series2dict(OPIXray_CLASSES)
@@ -24,17 +24,20 @@ def result_struct(detections,h, w,all_boxes,OPIXray_CLASSES):
         boxes[:, 3] *= h
         # print("after boxes:",boxes)
         # print(boxes.cpu().numpy())
-        scores = dets[:, 0].cpu().numpy()
+        scores = dets[:, 0].cpu().detach().numpy()
         scores_list = scores.tolist()
         class_scores_dict[present_class] = scores_list
+        # print(class_scores_dict)
         # print("scores:", scores_list)
-        cls_dets = np.hstack((boxes.cpu().numpy(),
+        cls_dets = np.hstack((boxes.cpu().detach().numpy(),
                               scores[:, np.newaxis])).astype(np.float32,
                                                              copy=False)
         all_boxes[j][0] = cls_dets
+        # print(all_boxes)
 
-        class_correct_scores = max_class(class_scores_dict)
-        class_coordinate_dict[present_class] = boxes.cpu().numpy().tolist()[:len(class_correct_scores[present_class])]
+        class_correct_scores = max_class(class_scores_dict,thresh)
+        class_coordinate_dict[present_class] = boxes.cpu().detach().numpy().tolist()[:len(class_correct_scores[present_class])]
+        # print(class_correct_scores)
         # for item in cls_dets:
         # print(item)
         # print(item[5])
